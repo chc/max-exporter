@@ -20,7 +20,7 @@ static CHCExpClassDesc CHCExpDesc;
 
 
 __declspec( dllexport ) const TCHAR *
-LibDescription() { return "CHC Engine Exporter"; }
+LibDescription() { return _T("CHC Engine Exporter"); }
 
 __declspec( dllexport ) int
 LibNumberClasses() { return 1; }

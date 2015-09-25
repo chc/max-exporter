@@ -19,4 +19,7 @@ public:
 	void			ShowAbout(HWND hWnd);		// Show DLL's "About..." box
 	int				DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts=FALSE, DWORD options=0);	// Export file
 	BOOL			SupportsOptions(int ext, DWORD options);
+
+	void			ProcessNode(INode *node);
+	void			ExportGeomObject(INode *node);
 };
