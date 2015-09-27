@@ -22,4 +22,10 @@ public:
 
 	void			ProcessNode(INode *node);
 	void			ExportGeomObject(INode *node);
+	void			ExportMesh(INode *node);
+	BOOL			TMNegParity(Matrix3 &m);
+	TriObject*		GetTriObjectFromNode(INode *node, TimeValue t, int &deleteIt);
+
+private:
+	FILE *fd;
 };

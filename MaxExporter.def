@@ -1,4 +1,4 @@
-LIBRARY THPSImp.dli
+LIBRARY max_exporter.dle
 EXPORTS
    LibDescription       @1       PRIVATE
    LibNumberClasses     @2       PRIVATE

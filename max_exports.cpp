@@ -18,28 +18,29 @@ class CHCExpClassDesc:public ClassDesc {
 
 static CHCExpClassDesc CHCExpDesc;
 
+extern "C" {
+	__declspec( dllexport ) const TCHAR *
+	LibDescription() { return _T("CHC Engine Exporter"); }
 
-__declspec( dllexport ) const TCHAR *
-LibDescription() { return _T("CHC Engine Exporter"); }
+	__declspec( dllexport ) int
+	LibNumberClasses() { return 1; }
 
-__declspec( dllexport ) int
-LibNumberClasses() { return 1; }
+	__declspec( dllexport ) ClassDesc *
+	LibClassDesc(int i) {
+		switch(i) {
+			case 0: return &CHCExpDesc; break;
+			default: return 0; break;
+		}
 
-__declspec( dllexport ) ClassDesc *
-LibClassDesc(int i) {
-	switch(i) {
-		case 0: return &CHCExpDesc; break;
-		default: return 0; break;
 	}
 
-}
+	// Return version so can detect obsolete DLLs
+	__declspec( dllexport ) ULONG 
+	LibVersion() { return VERSION_3DSMAX; }
 
-// Return version so can detect obsolete DLLs
-__declspec( dllexport ) ULONG 
-LibVersion() { return VERSION_3DSMAX; }
-
-// Let the plug-in register itself for deferred loading
-__declspec( dllexport ) ULONG CanAutoDefer()
-{
-	return 1;
+	// Let the plug-in register itself for deferred loading
+	__declspec( dllexport ) ULONG CanAutoDefer()
+	{
+		return 1;
+	}
 }
