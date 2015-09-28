@@ -64,7 +64,7 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 				TSTR mapName = ((BitmapTex *)texmap)->GetMapName();
 				OutputDebugStringW(mapName);
 				OutputDebugStringW(_T("\n"));
-				StdUVGen* uvGen = ((BitmapTex *)tex)->GetUVGen();
+				StdUVGen* uvGen = ((BitmapTex *)texmap)->GetUVGen();
 				if(uvGen) {
 					float u_tiling = uvGen->GetUScl(0);
 					float v_tiling = uvGen->GetVScl(0);
