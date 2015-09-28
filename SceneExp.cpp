@@ -1,5 +1,6 @@
 #include "SceneExp.h"
 #include <stdint.h>
+#include <stdmat.h>
 #define CHCMESH_VERSION 2
 enum ECHCMeshFlags {
 	ECHCMeshFlag_ColAsInt = (1<<1),
@@ -50,6 +51,36 @@ unsigned int	CHCScnExp::Version() {
 	return 0;
 }
 void			CHCScnExp::ShowAbout(HWND hWnd) {
+}
+void CHCScnExp::ExportMaterial(Mtl *mtl) {
+	OutputDebugStringW(mtl->GetName());
+	OutputDebugStringW(_T("\n"));
+	for(int j=0;j<mtl->NumSubTexmaps();j++) {
+		Texmap *texmap = mtl->GetSubTexmap(j);
+		if(texmap != NULL) {
+			OutputDebugStringW(texmap->GetName());
+			OutputDebugStringW(_T("!!\n"));
+			if (texmap->ClassID() == Class_ID(BMTEX_CLASS_ID, 0x00)) {
+				TSTR mapName = ((BitmapTex *)texmap)->GetMapName();
+				OutputDebugStringW(mapName);
+				OutputDebugStringW(_T("\n"));
+				StdUVGen* uvGen = ((BitmapTex *)tex)->GetUVGen();
+				if(uvGen) {
+					float u_tiling = uvGen->GetUScl(0);
+					float v_tiling = uvGen->GetVScl(0);
+					float u_offset = uvGen->GetUOffs(0);
+					float v_offset = uvGen->GetVOffs(0);
+				}
+			}
+		}
+	}
+	for(int i=0;i<mtl->NumSubMtls();i++) {
+		Mtl *mtl2 = mtl->GetSubMtl(i);
+		if(mtl) {
+			ExportMaterial(mtl2);
+		}
+	}
+	
 }
 void CHCScnExp::ExportMesh(INode *node) {
 	TimeValue t = 0;
@@ -153,6 +184,8 @@ void CHCScnExp::ExportMesh(INode *node) {
 		indices[2] = mesh->faces[i].v[vx3];
 		fwrite(&indices,sizeof(uint32_t),3,fd);
 	}
+
+	ExportMaterial(node->GetMtl());
 }
 void			CHCScnExp::ExportGeomObject(INode *node) {
 	ObjectState os = node->EvalWorldState(0);
