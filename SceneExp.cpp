@@ -53,17 +53,11 @@ unsigned int	CHCScnExp::Version() {
 void			CHCScnExp::ShowAbout(HWND hWnd) {
 }
 void CHCScnExp::ExportMaterial(Mtl *mtl) {
-	OutputDebugStringW(mtl->GetName());
-	OutputDebugStringW(_T("\n"));
 	for(int j=0;j<mtl->NumSubTexmaps();j++) {
 		Texmap *texmap = mtl->GetSubTexmap(j);
 		if(texmap != NULL) {
-			OutputDebugStringW(texmap->GetName());
-			OutputDebugStringW(_T("!!\n"));
 			if (texmap->ClassID() == Class_ID(BMTEX_CLASS_ID, 0x00)) {
 				TSTR mapName = ((BitmapTex *)texmap)->GetMapName();
-				OutputDebugStringW(mapName);
-				OutputDebugStringW(_T("\n"));
 				StdUVGen* uvGen = ((BitmapTex *)texmap)->GetUVGen();
 				if(uvGen) {
 					float u_tiling = uvGen->GetUScl(0);
@@ -126,9 +120,11 @@ void CHCScnExp::ExportMesh(INode *node) {
 
 	head.version = CHCMESH_VERSION;
 	fwrite(&head,sizeof(head),1,fd);
-	fwrite(&uvcount,sizeof(uint32_t),1,fd);
-	for(int i=0;i<uvcount;i++) {
-		fwrite(&numTVx,sizeof(uint32_t),1,fd);
+	if(head.flags & ECHCMeshFlag_HasUVs) {
+		fwrite(&uvcount,sizeof(uint32_t),1,fd);
+		for(int i=0;i<uvcount;i++) {
+			fwrite(&numTVx,sizeof(uint32_t),1,fd);
+		}
 	}
 	
 	/*
@@ -185,7 +181,7 @@ void CHCScnExp::ExportMesh(INode *node) {
 		fwrite(&indices,sizeof(uint32_t),3,fd);
 	}
 
-	ExportMaterial(node->GetMtl());
+	//ExportMaterial(node->GetMtl());
 }
 void			CHCScnExp::ExportGeomObject(INode *node) {
 	ObjectState os = node->EvalWorldState(0);
