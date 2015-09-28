@@ -10,10 +10,13 @@ enum ECHCMeshFlags {
 };
 typedef struct {
 	uint32_t version;
+	uint32_t num_meshes;
+} CHCMeshHead;
+typedef struct {
 	uint32_t num_verts;
 	uint32_t num_indices;
 	uint8_t flags;
-} CHCMeshHead;
+} CHCMeshItemHead;
 
 CHCScnExp::CHCScnExp() {
 }
@@ -105,7 +108,7 @@ void CHCScnExp::ExportMesh(INode *node) {
 	
 	mesh->buildNormals();
 
-	CHCMeshHead head;
+	CHCMeshItemHead head;
 	memset(&head,0,sizeof(head));
 	head.num_verts = mesh->getNumVerts();
 	head.num_indices = mesh->getNumFaces();
@@ -118,7 +121,6 @@ void CHCScnExp::ExportMesh(INode *node) {
 		head.flags |= ECHCMeshFlag_HasUVs;
 	}
 
-	head.version = CHCMESH_VERSION;
 	fwrite(&head,sizeof(head),1,fd);
 	if(head.flags & ECHCMeshFlag_HasUVs) {
 		fwrite(&uvcount,sizeof(uint32_t),1,fd);
@@ -213,15 +215,18 @@ void CHCScnExp::ProcessNode(INode *node) {
 }
 int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts, DWORD options) {
 	INode *node = i->GetRootNode();
+	fd = (FILE *)fopen("scene.mesh","wb");
 	int numChildren = node->NumberOfChildren();
+	CHCMeshHead head;
+	memset(&head,0,sizeof(head));
+	head.num_meshes = numChildren;
+	head.version = CHCMESH_VERSION;
+	fwrite(&head,sizeof(head),1,fd);
 	for(int i=0;i<numChildren;i++) {
 		INode *snode = node->GetChildNode(i);
-		fd = (FILE *)fopen("scene.mesh","wb");
 		ProcessNode(snode);
-		OutputDebugStringA("node loop\n");
-		fclose(fd);
 	}
-
+	fclose(fd);
 	return IMPEXP_SUCCESS;
 }
 BOOL			CHCScnExp::SupportsOptions(int ext, DWORD options) {
