@@ -1,6 +1,7 @@
 #include "SceneExp.h"
 #include <stdint.h>
 #include <stdmat.h>
+#include <bmmlib.h>
 #include "crc32.h"
 #define CHCMESH_VERSION 2
 #define MAX_MATERIAL_PASSES 4
@@ -13,11 +14,13 @@ enum ECHCMeshFlags {
 typedef struct {
 	uint32_t version;
 	uint32_t num_meshes;
+	uint32_t num_materials;
 } CHCMeshHead;
 typedef struct {
 	uint32_t num_verts;
 	uint32_t num_indices;
 	uint8_t flags;
+	uint32_t m_material_checksum;
 } CHCMeshItemHead;
 
 typedef struct {
@@ -26,9 +29,9 @@ typedef struct {
 	float m_uv_offset[3];
 } CHCMaterialTexInfo;
 typedef struct {
+	uint32_t m_material_checksum;
 	float m_specular_colour[3];
 	float m_ambient_colour[3];
-
 	uint8_t m_tex_count;
 } CHCMaterialInfo;
 
@@ -36,7 +39,26 @@ typedef struct {
 typedef struct {
 	uint32_t num_textures;
 } CHCTexTableHead;
+enum EColourType {
+	EColourType_8BPP_256Palette,
+	EColourType_16BPP,
+	EColourType_24BPP,
+	EColourType_32BPP,
+	EColourType_DXT1,
+	EColourType_DXT2,
+	EColourType_DXT3,
+	EColourType_DXT5,
+};
+typedef struct {
+	uint32_t checksum;
+	uint32_t width;
+	uint32_t height;
+	EColourType colourType;
+	uint32_t data_size;
+}CHCTexTableItem;
 CHCScnExp::CHCScnExp() {
+	m_tex_count = 0;
+	m_mtl_count = 0;
 }
 CHCScnExp::~CHCScnExp() {
 }
@@ -73,9 +95,51 @@ unsigned int	CHCScnExp::Version() {
 }
 void			CHCScnExp::ShowAbout(HWND hWnd) {
 }
+void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum) {
+	BitmapTex *btex = ((BitmapTex *)texmap);
+	BitmapInfo  bi;
+	TimeValue t = 0;
+	Bitmap *bmap = btex->GetBitmap(t);
+
+	m_tex_count++;
+	
+	bi.SetWidth ( bmap->Width()   );
+	bi.SetHeight( bmap->Height() );
+	bi.SetType  ( BMM_TRUE_32   );
+	bi.SetFlags ( MAP_HAS_ALPHA );
+	bi.SetCustomFlag( 0 );
+	Bitmap *bmap_out = TheManager->Create(&bi);
+	texmap->RenderBitmap(t,bmap_out);
+
+	CHCTexTableItem item;
+	memset(&item,0,sizeof(item));
+	item.checksum = checksum;
+	item.width = bmap->Width();
+	item.height = bmap->Height();
+	item.colourType = EColourType_32BPP;
+	item.data_size = bi.Width() * bi.Height() * sizeof(uint32_t);
+	fwrite(&item,sizeof(item),1,texfd);
+	BMM_Color_64 *col_data = (BMM_Color_64*)malloc(bi.Width() * sizeof(BMM_Color_64));
+	uint32_t col = 0;
+	for(int i=0;i<bi.Height();i++) {
+		bmap_out->GetPixels(0,i,bi.Width(),col_data);
+		for(int j=0;j<bi.Width();j++) {
+			col = 0;
+			col |= ((uint8_t)col_data[j].a) << 24;
+			col |= ((uint8_t)col_data[j].b) << 16;
+			col |= ((uint8_t)col_data[j].g) << 8;
+			col |= ((uint8_t)col_data[j].r);
+			fwrite(&col,sizeof(col),1,texfd);
+		}
+	}
+	free(col_data);
+	TheManager->DelBitmap(bmap_out);
+}
 void CHCScnExp::ExportMaterial(Mtl *mtl) {
+	m_mtl_count++;
 	CHCMaterialInfo mat;
 	memset(&mat,0,sizeof(mat));
+	mat.m_material_checksum = crc32(0,mtl->GetName().data(),mtl->GetName().Length());
 	Color specCol = mtl->GetSpecular();
 	mat.m_specular_colour[0] = specCol.r;
 	mat.m_specular_colour[1] = specCol.g;
@@ -86,7 +150,6 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 	mat.m_ambient_colour[2] = specCol.b;
 	mat.m_tex_count = mtl->NumSubTexmaps();
 	fwrite(&mat,sizeof(mat),1,fd);
-
 	for(int j=0;j<mat.m_tex_count;j++) {
 		CHCMaterialTexInfo tex;
 		memset(&tex,0,sizeof(tex));
@@ -94,23 +157,24 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 		Texmap *texmap = mtl->GetSubTexmap(j);
 		if(texmap != NULL) {
 			if (texmap->ClassID() == Class_ID(BMTEX_CLASS_ID, 0x00)) {
-				TSTR mapName = ((BitmapTex *)texmap)->GetMapName();
-				StdUVGen* uvGen = ((BitmapTex *)texmap)->GetUVGen();
-				tex.m_checksum = 0xABCDEF02;
+				BitmapTex *btex = ((BitmapTex *)texmap);
+				TSTR mapName = btex->GetMapName();
+				StdUVGen* uvGen = btex->GetUVGen();
+				tex.m_checksum = crc32(0,mapName.data(),strlen(mapName.data()));
 				if(uvGen) {
 					tex.m_tiling[0] = uvGen->GetUScl(0);
 					tex.m_tiling[1] = uvGen->GetVScl(0);
 					tex.m_uv_offset[0] = uvGen->GetUOffs(0);
 					tex.m_uv_offset[1] = uvGen->GetVOffs(0);
 				}
-
+				AddTextureToTexTbl(texmap,tex.m_checksum);
 				fwrite(&tex,sizeof(tex),1,fd);
 			}
 		}
 	}
 	for(int i=0;i<mtl->NumSubMtls();i++) {
 		Mtl *mtl2 = mtl->GetSubMtl(i);
-		if(mtl) {
+		if(mtl2) {
 			ExportMaterial(mtl2);
 		}
 	}
@@ -150,6 +214,10 @@ void CHCScnExp::ExportMesh(INode *node) {
 	head.num_verts = mesh->getNumVerts();
 	head.num_indices = mesh->getNumFaces();
 
+	Mtl *mtl = node->GetMtl();
+	if(mtl) {
+		head.m_material_checksum = crc32(0,mtl->GetName().data(),mtl->GetName().Length());
+	}
 	uint32_t uvcount = 0;
 	uint32_t numTVx = mesh->getNumTVerts();
 	
@@ -165,32 +233,7 @@ void CHCScnExp::ExportMesh(INode *node) {
 			fwrite(&numTVx,sizeof(uint32_t),1,fd);
 		}
 	}
-	
-	/*
-	//get UV count
-	for (int mp = 2; mp < MAX_MESHMAPS-1; mp++) {
-		if (mesh->mapSupport(mp)) {
-			uvcount++;
-		}
-	}
 
-	if(uvcount> 0) {
-		head.flags |= ECHCMeshFlag_HasUVs;
-	}
-	head.version = CHCMESH_VERSION;
-	fwrite(&head,sizeof(head),1,fd);
-
-
-	fwrite(&uvcount,sizeof(uint32_t),1,fd);
-	
-	//write individual UV map count
-	for (int mp = 2; mp < MAX_MESHMAPS-1; mp++) {
-		if (mesh->mapSupport(mp)) {
-			uint32_t numTVx = mesh->getNumMapVerts(mp);
-			fwrite(&numTVx,sizeof(uint32_t),1,fd);
-		}
-	}
-	*/
 	float verts[3];
 	for (int i=0; i<head.num_verts; i++) {
 		Point3 v = tm * mesh->verts[i];
@@ -242,8 +285,9 @@ void			CHCScnExp::ExportGeomMaterial(INode *node) {
 	// from the camera and light objects, so we skip them here.
 	if (os.obj->ClassID() == Class_ID(TARGET_CLASS_ID, 0))
 		return;
-
-	ExportMaterial(node->GetMtl());
+	Mtl *mtl = node->GetMtl();
+	if(mtl)
+		ExportMaterial(mtl);
 }
 void CHCScnExp::ProcessMesh(INode *node) {
 		// The ObjectState is a 'thing' that flows down the pipeline containing
@@ -275,18 +319,34 @@ void CHCScnExp::ProcessMaterial(INode *node) {
 int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts, DWORD options) {
 	INode *node = i->GetRootNode();
 	fd = (FILE *)fopen("scene.mesh","wb");
+	texfd = (FILE *)fopen("scene.tex","wb");
+	CHCTexTableHead tex;
+	memset(&tex,0,sizeof(tex));
+	fwrite(&tex,sizeof(tex),1,texfd);
 	int numChildren = node->NumberOfChildren();
 	CHCMeshHead head;
 	memset(&head,0,sizeof(head));
 	head.num_meshes = numChildren;
+	head.num_materials = numChildren;
 	head.version = CHCMESH_VERSION;
 	fwrite(&head,sizeof(head),1,fd);
+	
 	for(int i=0;i<numChildren;i++) {
 		INode *snode = node->GetChildNode(i);
 		ProcessMesh(snode);
+	}
+	for(int i=0;i<numChildren;i++) {
+		INode *snode = node->GetChildNode(i);
 		ProcessMaterial(snode);
 	}
+	head.num_materials = m_mtl_count;
+	fseek(fd,0,SEEK_SET);
+	fwrite(&head,sizeof(head),1,fd);
 	fclose(fd);
+	tex.num_textures = m_tex_count;
+	fseek(texfd,0,SEEK_SET);
+	fwrite(&tex,sizeof(tex),1,texfd);
+	fclose(texfd);
 	return IMPEXP_SUCCESS;
 }
 BOOL			CHCScnExp::SupportsOptions(int ext, DWORD options) {

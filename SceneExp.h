@@ -31,8 +31,11 @@ public:
 	BOOL			TMNegParity(Matrix3 &m);
 	TriObject*		GetTriObjectFromNode(INode *node, TimeValue t, int &deleteIt);
 	uint32_t		getTextureChecksum(const char *path);
+	void			AddTextureToTexTbl(Texmap *texmap, uint32_t checksum);
 private:
 	FILE *fd;
 	FILE *texfd;
 	std::list<uint32_t> importedTextures;
+	int m_tex_count;
+	int m_mtl_count;
 };
