@@ -1,7 +1,9 @@
 #include "SceneExp.h"
 #include <stdint.h>
 #include <stdmat.h>
+#include "crc32.h"
 #define CHCMESH_VERSION 2
+#define MAX_MATERIAL_PASSES 4
 enum ECHCMeshFlags {
 	ECHCMeshFlag_ColAsInt = (1<<1),
 	ECHCMeshFlag_HasNormals = (1<<2),
@@ -18,6 +20,22 @@ typedef struct {
 	uint8_t flags;
 } CHCMeshItemHead;
 
+typedef struct {
+	uint32_t m_checksum;
+	bool m_tiling[3]; //UVW
+	float m_uv_offset[3];
+} CHCMaterialTexInfo;
+typedef struct {
+	float m_specular_colour[3];
+	float m_ambient_colour[3];
+
+	uint8_t m_tex_count;
+} CHCMaterialInfo;
+
+
+typedef struct {
+	uint32_t num_textures;
+} CHCTexTableHead;
 CHCScnExp::CHCScnExp() {
 }
 CHCScnExp::~CHCScnExp() {
@@ -56,18 +74,37 @@ unsigned int	CHCScnExp::Version() {
 void			CHCScnExp::ShowAbout(HWND hWnd) {
 }
 void CHCScnExp::ExportMaterial(Mtl *mtl) {
-	for(int j=0;j<mtl->NumSubTexmaps();j++) {
+	CHCMaterialInfo mat;
+	memset(&mat,0,sizeof(mat));
+	Color specCol = mtl->GetSpecular();
+	mat.m_specular_colour[0] = specCol.r;
+	mat.m_specular_colour[1] = specCol.g;
+	mat.m_specular_colour[2] = specCol.b;
+	specCol = mtl->GetAmbient();
+	mat.m_ambient_colour[0] = specCol.r;
+	mat.m_ambient_colour[1] = specCol.g;
+	mat.m_ambient_colour[2] = specCol.b;
+	mat.m_tex_count = mtl->NumSubTexmaps();
+	fwrite(&mat,sizeof(mat),1,fd);
+
+	for(int j=0;j<mat.m_tex_count;j++) {
+		CHCMaterialTexInfo tex;
+		memset(&tex,0,sizeof(tex));
+
 		Texmap *texmap = mtl->GetSubTexmap(j);
 		if(texmap != NULL) {
 			if (texmap->ClassID() == Class_ID(BMTEX_CLASS_ID, 0x00)) {
 				TSTR mapName = ((BitmapTex *)texmap)->GetMapName();
 				StdUVGen* uvGen = ((BitmapTex *)texmap)->GetUVGen();
+				tex.m_checksum = 0xABCDEF02;
 				if(uvGen) {
-					float u_tiling = uvGen->GetUScl(0);
-					float v_tiling = uvGen->GetVScl(0);
-					float u_offset = uvGen->GetUOffs(0);
-					float v_offset = uvGen->GetVOffs(0);
+					tex.m_tiling[0] = uvGen->GetUScl(0);
+					tex.m_tiling[1] = uvGen->GetVScl(0);
+					tex.m_uv_offset[0] = uvGen->GetUOffs(0);
+					tex.m_uv_offset[1] = uvGen->GetVOffs(0);
 				}
+
+				fwrite(&tex,sizeof(tex),1,fd);
 			}
 		}
 	}
@@ -153,7 +190,7 @@ void CHCScnExp::ExportMesh(INode *node) {
 			fwrite(&numTVx,sizeof(uint32_t),1,fd);
 		}
 	}
-		*/
+	*/
 	float verts[3];
 	for (int i=0; i<head.num_verts; i++) {
 		Point3 v = tm * mesh->verts[i];
@@ -182,8 +219,6 @@ void CHCScnExp::ExportMesh(INode *node) {
 		indices[2] = mesh->faces[i].v[vx3];
 		fwrite(&indices,sizeof(uint32_t),3,fd);
 	}
-
-	//ExportMaterial(node->GetMtl());
 }
 void			CHCScnExp::ExportGeomObject(INode *node) {
 	ObjectState os = node->EvalWorldState(0);
@@ -198,7 +233,19 @@ void			CHCScnExp::ExportGeomObject(INode *node) {
 	ExportMesh(node);
 	
 }
-void CHCScnExp::ProcessNode(INode *node) {
+void			CHCScnExp::ExportGeomMaterial(INode *node) {
+	ObjectState os = node->EvalWorldState(0);
+	if (!os.obj)
+		return;
+	
+	// Targets are actually geomobjects, but we will export them
+	// from the camera and light objects, so we skip them here.
+	if (os.obj->ClassID() == Class_ID(TARGET_CLASS_ID, 0))
+		return;
+
+	ExportMaterial(node->GetMtl());
+}
+void CHCScnExp::ProcessMesh(INode *node) {
 		// The ObjectState is a 'thing' that flows down the pipeline containing
 		// all information about the object. By calling EvalWorldState() we tell
 		// max to eveluate the object at end of the pipeline.
@@ -208,6 +255,18 @@ void CHCScnExp::ProcessNode(INode *node) {
 			switch(os.obj->SuperClassID()) {
 				case GEOMOBJECT_CLASS_ID: {
 					ExportGeomObject(node);
+					break;
+				}
+			}
+		}
+}
+void CHCScnExp::ProcessMaterial(INode *node) {
+		TimeValue t = 0;
+		ObjectState os = node->EvalWorldState(t); 
+		if(os.obj) {
+			switch(os.obj->SuperClassID()) {
+				case GEOMOBJECT_CLASS_ID: {
+					ExportGeomMaterial(node);
 					break;
 				}
 			}
@@ -224,7 +283,8 @@ int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	fwrite(&head,sizeof(head),1,fd);
 	for(int i=0;i<numChildren;i++) {
 		INode *snode = node->GetChildNode(i);
-		ProcessNode(snode);
+		ProcessMesh(snode);
+		ProcessMaterial(snode);
 	}
 	fclose(fd);
 	return IMPEXP_SUCCESS;
@@ -258,4 +318,8 @@ TriObject* CHCScnExp::GetTriObjectFromNode(INode *node, TimeValue t, int &delete
 	else {
 		return NULL;
 	}
+}
+uint32_t CHCScnExp::getTextureChecksum(const char *path) {
+	char _path[FILENAME_MAX+1];
+	return crc32(0,path,strlen(path));
 }

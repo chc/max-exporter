@@ -1,5 +1,7 @@
 #include <Windows.h>
 #include <Max.h>
+#include <list>
+#include <stdint.h>
 class CHCScnExp : public SceneExport {
 	friend INT_PTR CALLBACK ExportOptionsDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -20,13 +22,17 @@ public:
 	int				DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts=FALSE, DWORD options=0);	// Export file
 	BOOL			SupportsOptions(int ext, DWORD options);
 
-	void			ProcessNode(INode *node);
+	void			ProcessMesh(INode *node);
+	void			ProcessMaterial(INode *node);
 	void			ExportGeomObject(INode *node);
+	void			ExportGeomMaterial(INode *node);					
 	void			ExportMesh(INode *node);
 	void			ExportMaterial(Mtl *mtl);
 	BOOL			TMNegParity(Matrix3 &m);
 	TriObject*		GetTriObjectFromNode(INode *node, TimeValue t, int &deleteIt);
-
+	uint32_t		getTextureChecksum(const char *path);
 private:
 	FILE *fd;
+	FILE *texfd;
+	std::list<uint32_t> importedTextures;
 };
