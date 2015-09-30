@@ -370,7 +370,7 @@ int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	INode *node = i->GetRootNode();
 	char out_name[FILENAME_MAX+1];
 	sprintf(out_name,"%s.mesh",name);
-	fd = (FILE *)fopen(name,"wb");
+	fd = (FILE *)fopen(out_name,"wb");
 	sprintf(out_name,"%s.tex",name);
 	texfd = (FILE *)fopen(out_name,"wb");
 	CHCTexTableHead tex;
