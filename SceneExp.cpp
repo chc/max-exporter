@@ -113,6 +113,9 @@ void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum) {
 
 	CHCTexTableItem item;
 	memset(&item,0,sizeof(item));
+	char msg[128];
+	sprintf(msg,"tex checksum is: 0x%08X\n",checksum);
+	OutputDebugStringA(msg);
 	item.checksum = checksum;
 	item.width = bmap->Width();
 	item.height = bmap->Height();
@@ -148,9 +151,55 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 	mat.m_ambient_colour[0] = specCol.r;
 	mat.m_ambient_colour[1] = specCol.g;
 	mat.m_ambient_colour[2] = specCol.b;
-	mat.m_tex_count = mtl->NumSubTexmaps();
+
+
+	//temporary hack until multiple mats are sorted..
+	Texmap *texmap = NULL;
+	int tex_count = 0;
+	for(int i=0;i<mtl->NumSubTexmaps();i++) {
+		Texmap *tmap = mtl->GetSubTexmap(i);
+		if(tmap!= NULL) {
+			if (tmap->ClassID() == Class_ID(BMTEX_CLASS_ID, 0x00)) {
+				tex_count = 1;
+				texmap = tmap;
+			}
+		}
+	}
+	for(int i=0;i<mtl->NumSubMtls();i++) {
+		Mtl *mtl2 = mtl->GetSubMtl(i);
+		if(mtl2) {
+			for(int i=0;i<mtl2->NumSubTexmaps();i++) {
+				Texmap *tmap = mtl2->GetSubTexmap(i);
+				if(tmap!= NULL) {
+					if (tmap->ClassID() == Class_ID(BMTEX_CLASS_ID, 0x00)) {
+						tex_count = 1;
+						texmap = tmap;
+					}
+				}
+			}
+		}
+	}
+
+	mat.m_tex_count = tex_count;
 	fwrite(&mat,sizeof(mat),1,fd);
-	for(int j=0;j<mat.m_tex_count;j++) {
+	if(texmap != NULL) {
+		CHCMaterialTexInfo tex;
+		memset(&tex,0,sizeof(tex));
+		BitmapTex *btex = ((BitmapTex *)texmap);
+		TSTR mapName = btex->GetMapName();
+		StdUVGen* uvGen = btex->GetUVGen();
+		tex.m_checksum = crc32(0,mapName.data(),mapName.Length());
+		if(uvGen) {
+			tex.m_tiling[0] = uvGen->GetUScl(0);
+			tex.m_tiling[1] = uvGen->GetVScl(0);
+			tex.m_uv_offset[0] = uvGen->GetUOffs(0);
+			tex.m_uv_offset[1] = uvGen->GetVOffs(0);
+		}
+		AddTextureToTexTbl(texmap,tex.m_checksum);
+		fwrite(&tex,sizeof(tex),1,fd);
+	}
+	/*
+	for(int j=0;j<mtl->NumSubTexmaps();j++) {
 		CHCMaterialTexInfo tex;
 		memset(&tex,0,sizeof(tex));
 
@@ -160,7 +209,10 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 				BitmapTex *btex = ((BitmapTex *)texmap);
 				TSTR mapName = btex->GetMapName();
 				StdUVGen* uvGen = btex->GetUVGen();
-				tex.m_checksum = crc32(0,mapName.data(),strlen(mapName.data()));
+				tex.m_checksum = crc32(0,mapName.data(),mapName.Length());
+				char msg[128];
+				sprintf(msg,"mat exp checksum is: 0x%08X\n",tex.m_checksum);
+				OutputDebugStringA(msg);
 				if(uvGen) {
 					tex.m_tiling[0] = uvGen->GetUScl(0);
 					tex.m_tiling[1] = uvGen->GetVScl(0);
@@ -178,6 +230,7 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 			ExportMaterial(mtl2);
 		}
 	}
+	*/
 	
 }
 void CHCScnExp::ExportMesh(INode *node) {
