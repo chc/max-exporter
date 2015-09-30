@@ -113,9 +113,6 @@ void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum) {
 
 	CHCTexTableItem item;
 	memset(&item,0,sizeof(item));
-	char msg[128];
-	sprintf(msg,"tex checksum is: 0x%08X\n",checksum);
-	OutputDebugStringA(msg);
 	item.checksum = checksum;
 	item.width = bmap->Width();
 	item.height = bmap->Height();
@@ -371,8 +368,11 @@ void CHCScnExp::ProcessMaterial(INode *node) {
 }
 int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts, DWORD options) {
 	INode *node = i->GetRootNode();
-	fd = (FILE *)fopen("scene.mesh","wb");
-	texfd = (FILE *)fopen("scene.tex","wb");
+	char out_name[FILENAME_MAX+1];
+	sprintf(out_name,"%s.mesh",name);
+	fd = (FILE *)fopen(name,"wb");
+	sprintf(out_name,"%s.tex",name);
+	texfd = (FILE *)fopen(out_name,"wb");
 	CHCTexTableHead tex;
 	memset(&tex,0,sizeof(tex));
 	fwrite(&tex,sizeof(tex),1,texfd);
