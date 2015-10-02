@@ -21,9 +21,15 @@
     <ClCompile Include="max_exports.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="crc32.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SceneExp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="crc32.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

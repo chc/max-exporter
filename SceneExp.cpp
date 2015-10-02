@@ -135,11 +135,19 @@ void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum) {
 	free(col_data);
 	TheManager->DelBitmap(bmap_out);
 }
+uint32_t CHCScnExp::GetChecksum(TSTR str) {
+	char ostr[128];
+	wcstombs(ostr,str.data(),sizeof(ostr));
+	return crc32(0,ostr,strlen(ostr));
+}
 void CHCScnExp::ExportMaterial(Mtl *mtl) {
 	m_mtl_count++;
 	CHCMaterialInfo mat;
 	memset(&mat,0,sizeof(mat));
-	mat.m_material_checksum = crc32(0,mtl->GetName().data(),mtl->GetName().Length());
+	mat.m_material_checksum = GetChecksum(mtl->GetName());
+	char msg[128];
+	sprintf(msg,"mat checksum: %08X\n",mat.m_material_checksum);
+	OutputDebugStringA(msg);
 	Color specCol = mtl->GetSpecular();
 	mat.m_specular_colour[0] = specCol.r;
 	mat.m_specular_colour[1] = specCol.g;
@@ -157,7 +165,7 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 		Texmap *tmap = mtl->GetSubTexmap(i);
 		if(tmap!= NULL) {
 			if (tmap->ClassID() == Class_ID(BMTEX_CLASS_ID, 0x00)) {
-				tex_count = 1;
+				tex_count++;
 				texmap = tmap;
 			}
 		}
@@ -169,7 +177,7 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 				Texmap *tmap = mtl2->GetSubTexmap(i);
 				if(tmap!= NULL) {
 					if (tmap->ClassID() == Class_ID(BMTEX_CLASS_ID, 0x00)) {
-						tex_count = 1;
+						tex_count++;
 						texmap = tmap;
 					}
 				}
@@ -185,7 +193,10 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 		BitmapTex *btex = ((BitmapTex *)texmap);
 		TSTR mapName = btex->GetMapName();
 		StdUVGen* uvGen = btex->GetUVGen();
-		tex.m_checksum = crc32(0,mapName.data(),mapName.Length());
+		tex.m_checksum = GetChecksum(mapName);
+		char msg[128];
+		sprintf(msg,"tex checksum: %08X\n",tex.m_checksum);
+		OutputDebugStringA(msg);
 		if(uvGen) {
 			tex.m_tiling[0] = uvGen->GetUScl(0);
 			tex.m_tiling[1] = uvGen->GetVScl(0);
@@ -266,7 +277,10 @@ void CHCScnExp::ExportMesh(INode *node) {
 
 	Mtl *mtl = node->GetMtl();
 	if(mtl) {
-		head.m_material_checksum = crc32(0,mtl->GetName().data(),mtl->GetName().Length());
+		head.m_material_checksum = GetChecksum(mtl->GetName());
+		char msg[128];
+		sprintf(msg,"mesh mat checksum: %08X : %s\n",head.m_material_checksum,mtl->GetName().ToMSTR());
+		OutputDebugStringA(msg);
 	}
 	uint32_t uvcount = 0;
 	uint32_t numTVx = mesh->getNumTVerts();
@@ -369,9 +383,11 @@ void CHCScnExp::ProcessMaterial(INode *node) {
 int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts, DWORD options) {
 	INode *node = i->GetRootNode();
 	char out_name[FILENAME_MAX+1];
-	sprintf(out_name,"%s.mesh",name);
+	char fname[FILENAME_MAX+1];
+	wcstombs(fname,name,sizeof(fname));
+	sprintf(out_name,"%s.mesh",fname);
 	fd = (FILE *)fopen(out_name,"wb");
-	sprintf(out_name,"%s.tex",name);
+	sprintf(out_name,"%s.tex",fname);
 	texfd = (FILE *)fopen(out_name,"wb");
 	CHCTexTableHead tex;
 	memset(&tex,0,sizeof(tex));

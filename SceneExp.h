@@ -32,6 +32,7 @@ public:
 	TriObject*		GetTriObjectFromNode(INode *node, TimeValue t, int &deleteIt);
 	uint32_t		getTextureChecksum(const char *path);
 	void			AddTextureToTexTbl(Texmap *texmap, uint32_t checksum);
+	uint32_t		GetChecksum(TSTR str);
 private:
 	FILE *fd;
 	FILE *texfd;

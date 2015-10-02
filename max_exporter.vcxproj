@@ -71,10 +71,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="crc32.cpp" />
     <ClCompile Include="max_exports.cpp" />
     <ClCompile Include="SceneExp.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="crc32.h" />
     <ClInclude Include="SceneExp.h" />
   </ItemGroup>
   <ItemGroup>
