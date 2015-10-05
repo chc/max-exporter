@@ -33,6 +33,7 @@ public:
 	uint32_t		getTextureChecksum(const char *path);
 	void			AddTextureToTexTbl(Texmap *texmap, uint32_t checksum);
 	uint32_t		GetChecksum(TSTR str);
+	short			GetTVerts(Mesh* mesh, Point2 *tv);
 private:
 	FILE *fd;
 	FILE *texfd;
