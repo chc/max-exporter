@@ -137,7 +137,11 @@ void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum) {
 }
 uint32_t CHCScnExp::GetChecksum(TSTR str) {
 	char ostr[128];
+#ifdef _UNICODE
 	wcstombs(ostr,str.data(),sizeof(ostr));
+#else
+	sprintf(ostr,"%s",str.data());
+#endif
 	return crc32(0,ostr,strlen(ostr));
 }
 void CHCScnExp::ExportMaterial(Mtl *mtl) {
@@ -145,9 +149,6 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 	CHCMaterialInfo mat;
 	memset(&mat,0,sizeof(mat));
 	mat.m_material_checksum = GetChecksum(mtl->GetName());
-	char msg[128];
-	sprintf(msg,"mat checksum: %08X\n",mat.m_material_checksum);
-	OutputDebugStringA(msg);
 	Color specCol = mtl->GetSpecular();
 	mat.m_specular_colour[0] = specCol.r;
 	mat.m_specular_colour[1] = specCol.g;
@@ -194,9 +195,6 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 		TSTR mapName = btex->GetMapName();
 		StdUVGen* uvGen = btex->GetUVGen();
 		tex.m_checksum = GetChecksum(mapName);
-		char msg[128];
-		sprintf(msg,"tex checksum: %08X\n",tex.m_checksum);
-		OutputDebugStringA(msg);
 		if(uvGen) {
 			tex.m_tiling[0] = uvGen->GetUScl(0);
 			tex.m_tiling[1] = uvGen->GetVScl(0);
@@ -278,9 +276,6 @@ void CHCScnExp::ExportMesh(INode *node) {
 	Mtl *mtl = node->GetMtl();
 	if(mtl) {
 		head.m_material_checksum = GetChecksum(mtl->GetName());
-		char msg[128];
-		sprintf(msg,"mesh mat checksum: %08X : %s\n",head.m_material_checksum,mtl->GetName().ToMSTR());
-		OutputDebugStringA(msg);
 	}
 	uint32_t uvcount = 0;
 	uint32_t numTVx = mesh->getNumTVerts();
@@ -384,7 +379,11 @@ int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	INode *node = i->GetRootNode();
 	char out_name[FILENAME_MAX+1];
 	char fname[FILENAME_MAX+1];
+#ifdef _UNICODE
 	wcstombs(fname,name,sizeof(fname));
+#else
+	sprintf(fname,"%s",name);
+#endif
 	sprintf(out_name,"%s.mesh",fname);
 	fd = (FILE *)fopen(out_name,"wb");
 	sprintf(out_name,"%s.tex",fname);
