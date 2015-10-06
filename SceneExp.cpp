@@ -302,17 +302,21 @@ void CHCScnExp::ExportMesh(INode *node) {
 		fwrite(&verts,sizeof(float),3,fd);
 	}
 
+	//Point2 *tv = new Point2[head.num_verts];
+	float ident = 1.0f;
+	//GetTVerts(mesh,tv);
 	if(head.flags & ECHCMeshFlag_HasUVs) {
 		for(int i=0;i<uvcount;i++) {
 			for(int j=0;j<numTVx;j++) {
-				UVVert tv = mesh->tVerts[j];
-				fwrite(&tv.x,sizeof(float),1,fd);
-				fwrite(&tv.y,sizeof(float),1,fd);
-				fwrite(&tv.z,sizeof(float),1,fd);
+				Point3 v = mesh->tVerts[j];
+				fwrite(&v.x,sizeof(float),1,fd);
+				fwrite(&v.y,sizeof(float),1,fd);
+				fwrite(&v.z,sizeof(float),1,fd);
 			}
 		
 		}
 	}
+	//delete tv;
 
 	uint32_t indices[3];
 	for (int i=0; i<head.num_indices; i++) {
@@ -451,3 +455,37 @@ uint32_t CHCScnExp::getTextureChecksum(const char *path) {
 	char _path[FILENAME_MAX+1];
 	return crc32(0,path,strlen(path));
 }
+
+short CHCScnExp::GetTVerts(Mesh* mesh, Point2 *tv) {
+	int nv = mesh->getNumVerts();
+ 	int nf = mesh->getNumFaces();
+	short wrap = 0;
+	BitArray done(nv);
+	for (int j=0; j<nf; j++) {
+		Face& face = mesh->faces[j];
+		TVFace& tvface = mesh->tvFace[j];
+		for (int k=0; k<3; k++)  {
+			// get the texture vertex.
+			Point3 uvw = mesh->tVerts[tvface.t[k]];
+			Point2 v(uvw.x,uvw.y);
+			// stuff it into the 3DSr4 vertex
+			int vert = face.v[k];
+			if (vert>65535) continue;
+			if (!done[vert]) {
+				tv[vert] = v;
+				done.Set(vert,1);
+				}
+			else {
+				if (v.x!=tv[vert].x) {
+					//wrap |= UWRAP;
+					if (v.x<tv[vert].x) tv[vert].x = v.x;
+					}
+				if (v.y!=tv[vert].y) {
+					//wrap |= VWRAP;
+					if (v.y<tv[vert].y) tv[vert].y = v.y;
+					}
+				}
+			}
+		}
+	return wrap;
+	}
