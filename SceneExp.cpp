@@ -280,6 +280,7 @@ void CHCScnExp::ExportMesh(INode *node) {
 	uint32_t uvcount = 0;
 	uint32_t numTVx = mesh->getNumTVerts();
 	
+	//head.flags |= ECHCMeshFlag_HasNormals;
 	if(numTVx > 0) {
 		uvcount = 1;
 		head.flags |= ECHCMeshFlag_HasUVs;
@@ -295,28 +296,51 @@ void CHCScnExp::ExportMesh(INode *node) {
 
 	float verts[3];
 	for (int i=0; i<head.num_verts; i++) {
-		Point3 v = tm * mesh->verts[i];
+		Point3 v = tm * mesh->getVert(i);
 		verts[0] = v.x;
 		verts[1] = v.y;
 		verts[2] = v.z;
 		fwrite(&verts,sizeof(float),3,fd);
 	}
+	if(head.flags & ECHCMeshFlag_HasNormals) {
+		for(int i=0;i<mesh->numFaces;i++) {
+			Point3 normal;
+			Face* face = &mesh->faces[i];
+			for(int v =0;v<3;v++) {
+			{
+				DWORD vi = face->v[v];
+				Point3 normal;
+				if(mesh->getRVertPtr(vi)) {
+					normal = GetVertexNormal(mesh, i, mesh->getRVertPtr(vi));
+				} else {
+						normal = Point3(0, 0, 1);
+				}
+				fwrite(&normal.x,sizeof(float),1,fd);
+				fwrite(&normal.y,sizeof(float),1,fd);
+				fwrite(&normal.z,sizeof(float),1,fd);
+				char msg[128];
+				sprintf(msg, "nx: %f %f %f\n",normal.x,normal.y,normal.z);
+				OutputDebugStringA(msg);
+				}
+			}
+		}
+	}
 
-	//Point2 *tv = new Point2[head.num_verts];
+	Point2 *tv = new Point2[head.num_verts];
 	float ident = 1.0f;
-	//GetTVerts(mesh,tv);
+	GetTVerts(mesh,tv);
 	if(head.flags & ECHCMeshFlag_HasUVs) {
 		for(int i=0;i<uvcount;i++) {
 			for(int j=0;j<numTVx;j++) {
-				Point3 v = mesh->tVerts[j];
-				fwrite(&v.x,sizeof(float),1,fd);
-				fwrite(&v.y,sizeof(float),1,fd);
-				fwrite(&v.z,sizeof(float),1,fd);
+				//Point3 v = mesh->getTVert(j);
+				fwrite(&tv[j].x,sizeof(float),1,fd);
+				fwrite(&tv[j].y,sizeof(float),1,fd);
+				fwrite(&ident,sizeof(float),1,fd);
 			}
 		
 		}
 	}
-	//delete tv;
+	delete tv;
 
 	uint32_t indices[3];
 	for (int i=0; i<head.num_indices; i++) {
@@ -488,4 +512,42 @@ short CHCScnExp::GetTVerts(Mesh* mesh, Point2 *tv) {
 			}
 		}
 	return wrap;
+}
+
+Point3 CHCScnExp::GetVertexNormal(Mesh* mesh, int faceNo, RVertex* rv)
+{
+	Face* f = &mesh->faces[faceNo];
+	DWORD smGroup = f->smGroup;
+	int numNormals = 0;
+	Point3 vertexNormal;
+	
+	// Is normal specified
+	// SPCIFIED is not currently used, but may be used in future versions.
+	if (rv->rFlags & SPECIFIED_NORMAL) {
+		vertexNormal = rv->rn.getNormal();
 	}
+	// If normal is not specified it's only available if the face belongs
+	// to a smoothing group
+	else if ((numNormals = rv->rFlags & NORCT_MASK) != 0 && smGroup) {
+		// If there is only one vertex is found in the rn member.
+		if (numNormals == 1) {
+			vertexNormal = rv->rn.getNormal();
+		}
+		else {
+			// If two or more vertices are there you need to step through them
+			// and find the vertex with the same smoothing group as the current face.
+			// You will find multiple normals in the ern member.
+			for (int i = 0; i < numNormals; i++) {
+				if (rv->ern[i].getSmGroup() & smGroup) {
+					vertexNormal = rv->ern[i].getNormal();
+				}
+			}
+		}
+	}
+	else {
+		// Get the normal from the Face if no smoothing groups are there
+		vertexNormal = mesh->getFaceNormal(faceNo);
+	}
+	
+	return vertexNormal;
+}

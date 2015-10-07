@@ -34,6 +34,7 @@ public:
 	void			AddTextureToTexTbl(Texmap *texmap, uint32_t checksum);
 	uint32_t		GetChecksum(TSTR str);
 	short			GetTVerts(Mesh* mesh, Point2 *tv);
+	Point3			GetVertexNormal(Mesh* mesh, int faceNo, RVertex* rv);
 private:
 	FILE *fd;
 	FILE *texfd;
