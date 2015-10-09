@@ -35,6 +35,7 @@ public:
 	uint32_t		GetChecksum(TSTR str);
 	short			GetTVerts(Mesh* mesh, Point2 *tv);
 	Point3			GetVertexNormal(Mesh* mesh, int faceNo, RVertex* rv);
+	void			ProcessLights(INode *node);
 private:
 	FILE *fd;
 	FILE *texfd;

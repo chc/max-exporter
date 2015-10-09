@@ -19,6 +19,7 @@ typedef struct {
 typedef struct {
 	uint32_t num_verts;
 	uint32_t num_indices;
+	uint32_t num_normals;
 	uint8_t flags;
 	uint32_t m_material_checksum;
 } CHCMeshItemHead;
@@ -137,11 +138,7 @@ void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum) {
 }
 uint32_t CHCScnExp::GetChecksum(TSTR str) {
 	char ostr[128];
-#ifdef _UNICODE
 	wcstombs(ostr,str.data(),sizeof(ostr));
-#else
-	sprintf(ostr,"%s",str.data());
-#endif
 	return crc32(0,ostr,strlen(ostr));
 }
 void CHCScnExp::ExportMaterial(Mtl *mtl) {
@@ -149,6 +146,9 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 	CHCMaterialInfo mat;
 	memset(&mat,0,sizeof(mat));
 	mat.m_material_checksum = GetChecksum(mtl->GetName());
+	char msg[128];
+	sprintf(msg,"mat checksum: %08X\n",mat.m_material_checksum);
+	OutputDebugStringA(msg);
 	Color specCol = mtl->GetSpecular();
 	mat.m_specular_colour[0] = specCol.r;
 	mat.m_specular_colour[1] = specCol.g;
@@ -195,6 +195,9 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 		TSTR mapName = btex->GetMapName();
 		StdUVGen* uvGen = btex->GetUVGen();
 		tex.m_checksum = GetChecksum(mapName);
+		char msg[128];
+		sprintf(msg,"tex checksum: %08X\n",tex.m_checksum);
+		OutputDebugStringA(msg);
 		if(uvGen) {
 			tex.m_tiling[0] = uvGen->GetUScl(0);
 			tex.m_tiling[1] = uvGen->GetVScl(0);
@@ -272,6 +275,11 @@ void CHCScnExp::ExportMesh(INode *node) {
 	memset(&head,0,sizeof(head));
 	head.num_verts = mesh->getNumVerts();
 	head.num_indices = mesh->getNumFaces();
+	head.num_normals = mesh->normalCount;
+
+	if(mesh->normalCount > 0) {
+		head.flags |= ECHCMeshFlag_HasNormals;
+	}
 
 	Mtl *mtl = node->GetMtl();
 	if(mtl) {
@@ -280,7 +288,6 @@ void CHCScnExp::ExportMesh(INode *node) {
 	uint32_t uvcount = 0;
 	uint32_t numTVx = mesh->getNumTVerts();
 	
-	//head.flags |= ECHCMeshFlag_HasNormals;
 	if(numTVx > 0) {
 		uvcount = 1;
 		head.flags |= ECHCMeshFlag_HasUVs;
@@ -296,51 +303,39 @@ void CHCScnExp::ExportMesh(INode *node) {
 
 	float verts[3];
 	for (int i=0; i<head.num_verts; i++) {
-		Point3 v = tm * mesh->getVert(i);
+		Point3 v = tm * mesh->verts[i];
 		verts[0] = v.x;
 		verts[1] = v.y;
 		verts[2] = v.z;
 		fwrite(&verts,sizeof(float),3,fd);
 	}
+
 	if(head.flags & ECHCMeshFlag_HasNormals) {
-		for(int i=0;i<mesh->numFaces;i++) {
-			Point3 normal;
-			Face* face = &mesh->faces[i];
-			for(int v =0;v<3;v++) {
-			{
-				DWORD vi = face->v[v];
-				Point3 normal;
-				if(mesh->getRVertPtr(vi)) {
-					normal = GetVertexNormal(mesh, i, mesh->getRVertPtr(vi));
-				} else {
-						normal = Point3(0, 0, 1);
-				}
-				fwrite(&normal.x,sizeof(float),1,fd);
-				fwrite(&normal.y,sizeof(float),1,fd);
-				fwrite(&normal.z,sizeof(float),1,fd);
-				char msg[128];
-				sprintf(msg, "nx: %f %f %f\n",normal.x,normal.y,normal.z);
-				OutputDebugStringA(msg);
-				}
-			}
+		for(int i=0;i<mesh->normalCount;i++) {
+			Point3 n = mesh->gfxNormals[i];
+			fwrite(&n.x,sizeof(float),1,fd);
+			fwrite(&n.y,sizeof(float),1,fd);
+			fwrite(&n.z,sizeof(float),1,fd);
 		}
 	}
 
-	Point2 *tv = new Point2[head.num_verts];
+	//Point2 *tv = new Point2[head.num_verts];
 	float ident = 1.0f;
-	GetTVerts(mesh,tv);
+	//GetTVerts(mesh,tv);
 	if(head.flags & ECHCMeshFlag_HasUVs) {
 		for(int i=0;i<uvcount;i++) {
 			for(int j=0;j<numTVx;j++) {
-				//Point3 v = mesh->getTVert(j);
-				fwrite(&tv[j].x,sizeof(float),1,fd);
-				fwrite(&tv[j].y,sizeof(float),1,fd);
-				fwrite(&ident,sizeof(float),1,fd);
+				Point3 v = mesh->tVerts[j];
+				fwrite(&v.x,sizeof(float),1,fd);
+				fwrite(&v.y,sizeof(float),1,fd);
+				fwrite(&v.z,sizeof(float),1,fd);
 			}
 		
 		}
 	}
-	delete tv;
+	//delete tv;
+
+
 
 	uint32_t indices[3];
 	for (int i=0; i<head.num_indices; i++) {
@@ -403,15 +398,23 @@ void CHCScnExp::ProcessMaterial(INode *node) {
 			}
 		}
 }
+void CHCScnExp::ProcessLights(INode *node) {
+		TimeValue t = 0;
+		ObjectState os = node->EvalWorldState(t); 
+		if(os.obj) {
+			switch(os.obj->SuperClassID()) {
+				case LIGHT_CLASS_ID: {
+					ExportLight(node);
+					break;
+				}
+			}
+		}
+}
 int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts, DWORD options) {
 	INode *node = i->GetRootNode();
 	char out_name[FILENAME_MAX+1];
 	char fname[FILENAME_MAX+1];
-#ifdef _UNICODE
 	wcstombs(fname,name,sizeof(fname));
-#else
-	sprintf(fname,"%s",name);
-#endif
 	sprintf(out_name,"%s.mesh",fname);
 	fd = (FILE *)fopen(out_name,"wb");
 	sprintf(out_name,"%s.tex",fname);
@@ -434,6 +437,10 @@ int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	for(int i=0;i<numChildren;i++) {
 		INode *snode = node->GetChildNode(i);
 		ProcessMaterial(snode);
+	}
+	for(int i=0;i<numChildren;i++) {
+		INode *snode = node->GetChildNode(i);
+		ProcessLights(snode);
 	}
 	head.num_materials = m_mtl_count;
 	fseek(fd,0,SEEK_SET);
@@ -512,42 +519,4 @@ short CHCScnExp::GetTVerts(Mesh* mesh, Point2 *tv) {
 			}
 		}
 	return wrap;
-}
-
-Point3 CHCScnExp::GetVertexNormal(Mesh* mesh, int faceNo, RVertex* rv)
-{
-	Face* f = &mesh->faces[faceNo];
-	DWORD smGroup = f->smGroup;
-	int numNormals = 0;
-	Point3 vertexNormal;
-	
-	// Is normal specified
-	// SPCIFIED is not currently used, but may be used in future versions.
-	if (rv->rFlags & SPECIFIED_NORMAL) {
-		vertexNormal = rv->rn.getNormal();
 	}
-	// If normal is not specified it's only available if the face belongs
-	// to a smoothing group
-	else if ((numNormals = rv->rFlags & NORCT_MASK) != 0 && smGroup) {
-		// If there is only one vertex is found in the rn member.
-		if (numNormals == 1) {
-			vertexNormal = rv->rn.getNormal();
-		}
-		else {
-			// If two or more vertices are there you need to step through them
-			// and find the vertex with the same smoothing group as the current face.
-			// You will find multiple normals in the ern member.
-			for (int i = 0; i < numNormals; i++) {
-				if (rv->ern[i].getSmGroup() & smGroup) {
-					vertexNormal = rv->ern[i].getNormal();
-				}
-			}
-		}
-	}
-	else {
-		// Get the normal from the Face if no smoothing groups are there
-		vertexNormal = mesh->getFaceNormal(faceNo);
-	}
-	
-	return vertexNormal;
-}
