@@ -29,10 +29,18 @@ typedef struct {
 	bool m_tiling[3]; //UVW
 	float m_uv_offset[3];
 } CHCMaterialTexInfo;
+enum ECHCMatFlags {
+	ECHCMatFlag_Wireframe = (1<<1),
+	ECHCMatFlag_NoBFC = (1<<2), //no backface culling
+};
 typedef struct {
 	uint32_t m_material_checksum;
+	uint8_t m_mat_flags;
 	float m_specular_colour[3];
 	float m_ambient_colour[3];
+	float m_shine;
+	float m_shinestrength;
+	float m_transparency;
 	uint8_t m_tex_count;
 } CHCMaterialInfo;
 
@@ -157,6 +165,19 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 	mat.m_ambient_colour[0] = specCol.r;
 	mat.m_ambient_colour[1] = specCol.g;
 	mat.m_ambient_colour[2] = specCol.b;
+
+	mat.m_shine = mtl->GetShininess();
+	mat.m_shinestrength = mtl->GetShinStr();
+	mat.m_transparency = mtl->GetXParency();
+
+	StdMat* std = (StdMat*)mtl;
+
+	if(std->GetTwoSided()) {
+		mat.m_mat_flags |= ECHCMatFlag_NoBFC;
+	}
+	if(std->GetWire()) {
+		mat.m_mat_flags |= ECHCMatFlag_Wireframe;
+	}
 
 
 	//temporary hack until multiple mats are sorted..
@@ -370,6 +391,8 @@ void			CHCScnExp::ExportGeomMaterial(INode *node) {
 	Mtl *mtl = node->GetMtl();
 	if(mtl)
 		ExportMaterial(mtl);
+}
+void			CHCScnExp::ExportLight(INode *node) {
 }
 void CHCScnExp::ProcessMesh(INode *node) {
 		// The ObjectState is a 'thing' that flows down the pipeline containing

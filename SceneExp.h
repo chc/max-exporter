@@ -28,6 +28,7 @@ public:
 	void			ExportGeomMaterial(INode *node);					
 	void			ExportMesh(INode *node);
 	void			ExportMaterial(Mtl *mtl);
+	void			ExportLight(INode *node);
 	BOOL			TMNegParity(Matrix3 &m);
 	TriObject*		GetTriObjectFromNode(INode *node, TimeValue t, int &deleteIt);
 	uint32_t		getTextureChecksum(const char *path);
