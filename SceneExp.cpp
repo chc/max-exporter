@@ -146,7 +146,11 @@ void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum) {
 }
 uint32_t CHCScnExp::GetChecksum(TSTR str) {
 	char ostr[128];
+#ifdef _UNICODE
 	wcstombs(ostr,str.data(),sizeof(ostr));
+#else
+	strcpy(ostr,str.data());
+#endif
 	return crc32(0,ostr,strlen(ostr));
 }
 void CHCScnExp::ExportMaterial(Mtl *mtl) {
@@ -437,7 +441,12 @@ int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	INode *node = i->GetRootNode();
 	char out_name[FILENAME_MAX+1];
 	char fname[FILENAME_MAX+1];
+#ifdef _UNICODE
 	wcstombs(fname,name,sizeof(fname));
+#else
+	strcpy(fname,name);
+#endif
+	
 	sprintf(out_name,"%s.mesh",fname);
 	fd = (FILE *)fopen(out_name,"wb");
 	sprintf(out_name,"%s.tex",fname);
