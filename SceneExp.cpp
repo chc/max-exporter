@@ -2,6 +2,9 @@
 #include <stdint.h>
 #include <stdmat.h>
 #include <bmmlib.h>
+
+
+
 #include "crc32.h"
 #define CHCMESH_VERSION 2
 #define MAX_MATERIAL_PASSES 4
@@ -104,7 +107,7 @@ unsigned int	CHCScnExp::Version() {
 }
 void			CHCScnExp::ShowAbout(HWND hWnd) {
 }
-void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum) {
+void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum, const char *name) {
 	BitmapTex *btex = ((BitmapTex *)texmap);
 	BitmapInfo  bi;
 	TimeValue t = 0;
@@ -143,6 +146,13 @@ void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum) {
 	}
 	free(col_data);
 	TheManager->DelBitmap(bmap_out);
+
+	pugi::xml_node xnode = m_textures_xml.append_child();
+    xnode.set_name("texture");
+	xnode.append_attribute("checksum") = item.checksum;
+	xnode.append_attribute("width") = item.width;
+	xnode.append_attribute("height") = item.height;
+	xnode.append_attribute("path") = name;
 }
 uint32_t CHCScnExp::GetChecksum(TSTR str) {
 	char ostr[128];
@@ -154,30 +164,65 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 	CHCMaterialInfo mat;
 	memset(&mat,0,sizeof(mat));
 	mat.m_material_checksum = GetChecksum(mtl->GetName());
-	char msg[128];
-	sprintf(msg,"mat checksum: %08X\n",mat.m_material_checksum);
-	OutputDebugStringA(msg);
+
+	pugi::xml_node xnode = m_materials_xml.append_child();
+    xnode.set_name("material");
+	xnode.append_attribute("name") = mtl->GetName().ToCStr();
+
 	Color specCol = mtl->GetSpecular();
+	
 	mat.m_specular_colour[0] = specCol.r;
 	mat.m_specular_colour[1] = specCol.g;
 	mat.m_specular_colour[2] = specCol.b;
+	
+	pugi::xml_node param = xnode.append_child();
+	param.set_name("specular_colour");
+	param.append_attribute("r") = specCol.r;
+	param.append_attribute("g") = specCol.g;
+	param.append_attribute("b") = specCol.b;
+
+
 	specCol = mtl->GetAmbient();
 	mat.m_ambient_colour[0] = specCol.r;
 	mat.m_ambient_colour[1] = specCol.g;
 	mat.m_ambient_colour[2] = specCol.b;
 
+	param = xnode.append_child();
+	param.set_name("ambient_colour");
+	param.append_attribute("r") = specCol.r;
+	param.append_attribute("g") = specCol.g;
+	param.append_attribute("b") = specCol.b;
+
 	mat.m_shine = mtl->GetShininess();
 	mat.m_shinestrength = mtl->GetShinStr();
+
+	param = xnode.append_child();
+	param.set_name("shine");
+	param.append_attribute("shine") = mat.m_shine;
+	param.append_attribute("shine_strength") = mat.m_shinestrength;
+
 	mat.m_transparency = mtl->GetXParency();
+
+	param = xnode.append_child();
+	param.set_name("transparency");
+	param.append_attribute("transparency") = mat.m_transparency;
 
 	StdMat* std = (StdMat*)mtl;
 
 	if(std->GetTwoSided()) {
+		param = xnode.append_child();
+		param.set_name("twosided");
+		param.append_attribute("value") = 1;
 		mat.m_mat_flags |= ECHCMatFlag_NoBFC;
 	}
 	if(std->GetWire()) {
+		param = xnode.append_child();
+		param.set_name("wireframe");
+		param.append_attribute("value") = 1;
 		mat.m_mat_flags |= ECHCMatFlag_Wireframe;
 	}
+
+
 
 
 	//temporary hack until multiple mats are sorted..
@@ -207,6 +252,7 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 		}
 	}
 
+
 	mat.m_tex_count = tex_count;
 	fwrite(&mat,sizeof(mat),1,fd);
 	if(texmap != NULL) {
@@ -216,16 +262,20 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 		TSTR mapName = btex->GetMapName();
 		StdUVGen* uvGen = btex->GetUVGen();
 		tex.m_checksum = GetChecksum(mapName);
-		char msg[128];
-		sprintf(msg,"tex checksum: %08X\n",tex.m_checksum);
-		OutputDebugStringA(msg);
 		if(uvGen) {
 			tex.m_tiling[0] = uvGen->GetUScl(0);
 			tex.m_tiling[1] = uvGen->GetVScl(0);
 			tex.m_uv_offset[0] = uvGen->GetUOffs(0);
 			tex.m_uv_offset[1] = uvGen->GetVOffs(0);
 		}
-		AddTextureToTexTbl(texmap,tex.m_checksum);
+		param = xnode.append_child();
+		param.set_name("texture");
+		param.append_attribute("path") = mapName.ToCStr();
+		param.append_attribute("tile_u") = tex.m_tiling[0];
+		param.append_attribute("tile_v") = tex.m_tiling[1];
+		param.append_attribute("u_offset") = tex.m_uv_offset[0];
+		param.append_attribute("v_offset") = tex.m_uv_offset[1];
+		AddTextureToTexTbl(texmap,tex.m_checksum, mtl->GetName().ToCStr());
 		fwrite(&tex,sizeof(tex),1,fd);
 	}
 	/*
@@ -264,6 +314,7 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 	
 }
 void CHCScnExp::ExportMesh(INode *node) {
+
 	TimeValue t = 0;
 	Mtl* nodeMtl = node->GetMtl();
 	Matrix3 tm = node->GetObjTMAfterWSM(t);
@@ -293,6 +344,7 @@ void CHCScnExp::ExportMesh(INode *node) {
 	mesh->buildNormals();
 
 	CHCMeshItemHead head;
+
 	memset(&head,0,sizeof(head));
 	head.num_verts = mesh->getNumVerts();
 	head.num_indices = mesh->getNumFaces();
@@ -321,28 +373,51 @@ void CHCScnExp::ExportMesh(INode *node) {
 			fwrite(&numTVx,sizeof(uint32_t),1,fd);
 		}
 	}
-
+	pugi::xml_node main_node = m_mesh_xml.append_child();
+	main_node.set_name("mesh");
+	char fname[FILENAME_MAX+1];
+	wcstombs(fname,node->GetName(),sizeof(fname));
+	main_node.append_attribute("name") = fname;
+	pugi::xml_node xnode = main_node.append_child();
+    xnode.set_name("verticies");
 	float verts[3];
 	for (int i=0; i<head.num_verts; i++) {
 		Point3 v = tm * mesh->verts[i];
 		verts[0] = v.x;
 		verts[1] = v.y;
 		verts[2] = v.z;
+		pugi::xml_node param = xnode.append_child();
+		param.set_name("point");
+
+		// add attributes to param node
+		param.append_attribute("x") = v.x;
+		param.append_attribute("y") = v.y;
+		param.append_attribute("z") = v.z;
 		fwrite(&verts,sizeof(float),3,fd);
 	}
-
+	xnode = main_node.append_child();
+    xnode.set_name("normals");
 	if(head.flags & ECHCMeshFlag_HasNormals) {
 		for(int i=0;i<mesh->normalCount;i++) {
 			Point3 n = mesh->gfxNormals[i];
 			fwrite(&n.x,sizeof(float),1,fd);
 			fwrite(&n.y,sizeof(float),1,fd);
 			fwrite(&n.z,sizeof(float),1,fd);
+			pugi::xml_node param = xnode.append_child();
+			param.set_name("point");
+
+			// add attributes to param node
+			param.append_attribute("x") = n.x;
+			param.append_attribute("y") = n.y;
+			param.append_attribute("z") = n.z;
 		}
 	}
 
 	//Point2 *tv = new Point2[head.num_verts];
 	float ident = 1.0f;
 	//GetTVerts(mesh,tv);
+	xnode = main_node.append_child();
+    xnode.set_name("uvws");
 	if(head.flags & ECHCMeshFlag_HasUVs) {
 		for(int i=0;i<uvcount;i++) {
 			for(int j=0;j<numTVx;j++) {
@@ -350,6 +425,13 @@ void CHCScnExp::ExportMesh(INode *node) {
 				fwrite(&v.x,sizeof(float),1,fd);
 				fwrite(&v.y,sizeof(float),1,fd);
 				fwrite(&v.z,sizeof(float),1,fd);
+				pugi::xml_node param = xnode.append_child();
+				param.set_name("point");
+
+				// add attributes to param node
+				param.append_attribute("x") = v.x;
+				param.append_attribute("y") = v.y;
+				param.append_attribute("z") = v.z;
 			}
 		
 		}
@@ -357,12 +439,20 @@ void CHCScnExp::ExportMesh(INode *node) {
 	//delete tv;
 
 
-
+	xnode = main_node.append_child();
+    xnode.set_name("indices");
 	uint32_t indices[3];
 	for (int i=0; i<head.num_indices; i++) {
 		indices[0] = mesh->faces[i].v[vx1];
 		indices[1] = mesh->faces[i].v[vx2];
 		indices[2] = mesh->faces[i].v[vx3];
+		pugi::xml_node param = xnode.append_child();
+		param.set_name("point");
+
+		// add attributes to param node
+		param.append_attribute("x") = indices[0];
+		param.append_attribute("y") = indices[1];
+		param.append_attribute("z") = indices[2];
 		fwrite(&indices,sizeof(uint32_t),3,fd);
 	}
 }
@@ -473,6 +563,23 @@ int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	fseek(texfd,0,SEEK_SET);
 	fwrite(&tex,sizeof(tex),1,texfd);
 	fclose(texfd);
+
+	sprintf(out_name,"%s.mesh.xml",fname);
+	std::ofstream mesh_xml_out;
+	mesh_xml_out.open(out_name);
+	m_mesh_xml.save(mesh_xml_out);
+	mesh_xml_out.close();
+	
+	sprintf(out_name,"%s.tex.xml",fname);
+	mesh_xml_out.open(out_name);
+	m_textures_xml.save(mesh_xml_out);
+	mesh_xml_out.close();
+
+
+	sprintf(out_name,"%s.mat.xml",fname);
+	mesh_xml_out.open(out_name);
+	m_materials_xml.save(mesh_xml_out);
+	mesh_xml_out.close();
 	return IMPEXP_SUCCESS;
 }
 BOOL			CHCScnExp::SupportsOptions(int ext, DWORD options) {

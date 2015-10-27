@@ -2,6 +2,10 @@
 #include <Max.h>
 #include <list>
 #include <stdint.h>
+#include <iostream>
+#include <fstream>
+#include <pugixml.hpp>
+
 class CHCScnExp : public SceneExport {
 	friend INT_PTR CALLBACK ExportOptionsDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -32,7 +36,7 @@ public:
 	BOOL			TMNegParity(Matrix3 &m);
 	TriObject*		GetTriObjectFromNode(INode *node, TimeValue t, int &deleteIt);
 	uint32_t		getTextureChecksum(const char *path);
-	void			AddTextureToTexTbl(Texmap *texmap, uint32_t checksum);
+	void			AddTextureToTexTbl(Texmap *texmap, uint32_t checksum, const char *name);
 	uint32_t		GetChecksum(TSTR str);
 	short			GetTVerts(Mesh* mesh, Point2 *tv);
 	Point3			GetVertexNormal(Mesh* mesh, int faceNo, RVertex* rv);
@@ -43,4 +47,8 @@ private:
 	std::list<uint32_t> importedTextures;
 	int m_tex_count;
 	int m_mtl_count;
+
+	pugi::xml_document m_mesh_xml;
+	pugi::xml_document m_materials_xml;
+	pugi::xml_document m_textures_xml;
 };
