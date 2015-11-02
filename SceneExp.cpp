@@ -146,13 +146,6 @@ void CHCScnExp::AddTextureToTexTbl(Texmap *texmap, uint32_t checksum, const char
 	}
 	free(col_data);
 	TheManager->DelBitmap(bmap_out);
-
-	pugi::xml_node xnode = m_textures_xml.append_child();
-    xnode.set_name("texture");
-	xnode.append_attribute("checksum") = item.checksum;
-	xnode.append_attribute("width") = item.width;
-	xnode.append_attribute("height") = item.height;
-	xnode.append_attribute("path") = name;
 }
 uint32_t CHCScnExp::GetChecksum(TSTR str) {
 	char ostr[128];
@@ -382,6 +375,11 @@ void CHCScnExp::ExportMesh(INode *node) {
 	char fname[FILENAME_MAX+1];
 	wcstombs(fname,node->GetName(),sizeof(fname));
 	main_node.append_attribute("name") = fname;
+
+	if(mtl) {
+		wcstombs(fname,mtl->GetName(),sizeof(fname));
+		main_node.append_attribute("material_name") = fname;
+	}
 	pugi::xml_node xnode = main_node.append_child();
     xnode.set_name("verticies");
 	float verts[3];
@@ -402,11 +400,8 @@ void CHCScnExp::ExportMesh(INode *node) {
 	xnode = main_node.append_child();
     xnode.set_name("normals");
 	if(head.flags & ECHCMeshFlag_HasNormals) {
-		for(int i=0;i<mesh->normalCount;i++) {
-			Point3 n = mesh->gfxNormals[i];
-			fwrite(&n.x,sizeof(float),1,fd);
-			fwrite(&n.y,sizeof(float),1,fd);
-			fwrite(&n.z,sizeof(float),1,fd);
+		for(int i=0;i<head.num_verts;i++) {
+			Point3 n = mesh->getNormal(i);
 			pugi::xml_node param = xnode.append_child();
 			param.set_name("point");
 
@@ -579,12 +574,6 @@ int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	m_mesh_xml.save(mesh_xml_out);
 	mesh_xml_out.close();
 	
-	sprintf(out_name,"%s.tex.xml",fname);
-	mesh_xml_out.open(out_name);
-	m_textures_xml.save(mesh_xml_out);
-	mesh_xml_out.close();
-
-
 	sprintf(out_name,"%s.mat.xml",fname);
 	mesh_xml_out.open(out_name);
 	m_materials_xml.save(mesh_xml_out);
