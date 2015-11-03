@@ -164,7 +164,11 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 
 	pugi::xml_node xnode = m_materials_xml.append_child();
     xnode.set_name("material");
+#ifdef _UNICODE
 	xnode.append_attribute("name") = mtl->GetName().ToCStr();
+#else
+	xnode.append_attribute("name") = mtl->GetName().data();
+#endif
 
 	Color specCol = mtl->GetSpecular();
 	
@@ -267,12 +271,18 @@ void CHCScnExp::ExportMaterial(Mtl *mtl) {
 		}
 		param = xnode.append_child();
 		param.set_name("texture");
-		param.append_attribute("path") = mapName.ToCStr();
 		param.append_attribute("tile_u") = tex.m_tiling[0];
 		param.append_attribute("tile_v") = tex.m_tiling[1];
 		param.append_attribute("u_offset") = tex.m_uv_offset[0];
 		param.append_attribute("v_offset") = tex.m_uv_offset[1];
+
+#ifndef _UNICODE
+		param.append_attribute("path") = mapName.data();
+		AddTextureToTexTbl(texmap,tex.m_checksum, (const char *) mtl->GetName().data());
+#else
+		param.append_attribute("path") = mapName.ToCStr();
 		AddTextureToTexTbl(texmap,tex.m_checksum, mtl->GetName().ToCStr());
+#endif
 		fwrite(&tex,sizeof(tex),1,fd);
 	}
 	/*
@@ -372,13 +382,23 @@ void CHCScnExp::ExportMesh(INode *node) {
 	}
 	pugi::xml_node main_node = m_mesh_xml.append_child();
 	main_node.set_name("mesh");
+
+#ifdef _UNICODE
 	char fname[FILENAME_MAX+1];
 	wcstombs(fname,node->GetName(),sizeof(fname));
 	main_node.append_attribute("name") = fname;
+#else
+	main_node.append_attribute("name") = node->GetName();
+#endif
 
 	if(mtl) {
+#ifdef _UNICODE
 		wcstombs(fname,mtl->GetName(),sizeof(fname));
 		main_node.append_attribute("material_name") = fname;
+#else
+		main_node.append_attribute("name") = mtl->GetName();
+#endif
+
 	}
 	pugi::xml_node xnode = main_node.append_child();
     xnode.set_name("verticies");
