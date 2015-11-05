@@ -28,25 +28,21 @@ public:
 
 	void			ProcessMesh(INode *node);
 	void			ProcessMaterial(INode *node);
-	void			ExportGeomObject(INode *node);
-	void			ExportGeomMaterial(INode *node);					
-	void			ExportMesh(INode *node);
-	void			ExportMaterial(Mtl *mtl);
+	void			ProcessGroups(INode *node);
+	void			ExportGeomObject(INode *node, pugi::xml_node *xmlnode);
+	void			ExportGeomMaterial(INode *node, pugi::xml_node *xmlnode);					
+	void			ExportMesh(INode *node, pugi::xml_node *xmlnode = NULL);
+	void			ExportMaterial(Mtl *mtl, pugi::xml_node *xmlnode = NULL);
 	void			ExportLight(INode *node);
 	BOOL			TMNegParity(Matrix3 &m);
 	TriObject*		GetTriObjectFromNode(INode *node, TimeValue t, int &deleteIt);
-	uint32_t		getTextureChecksum(const char *path);
-	void			AddTextureToTexTbl(Texmap *texmap, uint32_t checksum, const char *name);
-	uint32_t		GetChecksum(TSTR str);
 	short			GetTVerts(Mesh* mesh, Point2 *tv);
 	Point3			GetVertexNormal(Mesh* mesh, int faceNo, RVertex* rv);
 	void			ProcessLights(INode *node);
 private:
-	FILE *fd;
-	FILE *texfd;
+
 	std::list<uint32_t> importedTextures;
-	int m_tex_count;
-	int m_mtl_count;
+
 
 	pugi::xml_document m_mesh_xml;
 	pugi::xml_document m_materials_xml;
