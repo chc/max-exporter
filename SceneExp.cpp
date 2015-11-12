@@ -2,7 +2,8 @@
 #include <stdint.h>
 #include <stdmat.h>
 #include <bmmlib.h>
-
+#include <ilayer.h>
+#include <ILayerProperties.h>
 
 
 CHCScnExp::CHCScnExp() {
@@ -152,10 +153,79 @@ void CHCScnExp::ExportMaterial(Mtl *mtl, pugi::xml_node *xmlnode) {
 
 	
 }
+
+void	CHCScnExp::ExportCollision(INode *node, pugi::xml_node *xmlnode) {
+	if(xmlnode == NULL) {
+		xmlnode = &m_collision_xml;
+	}
+
+	TimeValue t = 0;
+	Mtl* nodeMtl = node->GetMtl();
+	Matrix3 tm = node->GetObjTMAfterWSM(t);
+	BOOL negScale = TMNegParity(tm);
+	int vx1, vx2, vx3;
+
+	// Order of the vertices. Get 'em counter clockwise if the objects is
+	// negatively scaled.
+	if (negScale) {
+		vx1 = 2;
+		vx2 = 1;
+		vx3 = 0;
+	}
+	else {
+		vx1 = 0;
+		vx2 = 1;
+		vx3 = 2;
+	}
+	BOOL needDel;
+	TriObject* tri = GetTriObjectFromNode(node, t, needDel);
+	if (!tri) {
+		return;
+	}
+	
+	Mesh* mesh = &tri->GetMesh();
+	
+	pugi::xml_node main_node = xmlnode->append_child();
+	
+	main_node.set_name("mesh");
+
+#ifdef _UNICODE
+	char fname[FILENAME_MAX+1];
+	wcstombs(fname,node->GetName(),sizeof(fname));
+	main_node.append_attribute("name") = fname;
+#else
+	main_node.append_attribute("name") = node->GetName();
+#endif
+
+	main_node.append_attribute("type") = "bbox";
+	
+	Box3 bbox = mesh->getBoundingBox();
+	pugi::xml_node xnode = main_node.append_child();
+	xnode.set_name("bounds");
+
+	xnode.append_attribute("minx") = bbox.Min().x;
+	xnode.append_attribute("miny") = bbox.Min().y;
+	xnode.append_attribute("minz") = bbox.Min().z;
+
+	xnode.append_attribute("maxx") = bbox.Max().x;
+	xnode.append_attribute("maxy") = bbox.Max().y;
+	xnode.append_attribute("maxz") = bbox.Max().z;
+
+}
+
 void CHCScnExp::ExportMesh(INode *node, pugi::xml_node *xmlnode) {
 	if(xmlnode == NULL) {
 		xmlnode = &m_mesh_xml;
 	}
+	
+	ILayer* layer = (ILayer*)node->GetReference(NODE_LAYER_REF);
+	ILayerProperties* layer_props = (ILayerProperties*)layer->GetInterface(LAYERPROPERTIES_INTERFACE);
+
+	if(_wcsicmp(layer_props->getName(), L"collision") == 0) {
+		ExportCollision(node);
+		return;
+	}
+
 	TimeValue t = 0;
 	Mtl* nodeMtl = node->GetMtl();
 	Matrix3 tm = node->GetObjTMAfterWSM(t);
@@ -419,6 +489,12 @@ int				CHCScnExp::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	mesh_xml_out.open(out_name);
 	m_mesh_xml.save(mesh_xml_out);
 	mesh_xml_out.close();
+
+	sprintf(out_name,"%s.col.xml",fname);
+	std::ofstream col_xml_out;
+	col_xml_out.open(out_name);
+	m_collision_xml.save(col_xml_out);
+	col_xml_out.close();
 	
 	sprintf(out_name,"%s.mat.xml",fname);
 	mesh_xml_out.open(out_name);

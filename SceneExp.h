@@ -29,11 +29,12 @@ public:
 	void			ProcessMesh(INode *node);
 	void			ProcessMaterial(INode *node);
 	void			ProcessGroups(INode *node);
-	void			ExportGeomObject(INode *node, pugi::xml_node *xmlnode);
-	void			ExportGeomMaterial(INode *node, pugi::xml_node *xmlnode);					
+	void			ExportGeomObject(INode *node, pugi::xml_node *xmlnode = NULL);
+	void			ExportGeomMaterial(INode *node, pugi::xml_node *xmlnode = NULL);					
 	void			ExportMesh(INode *node, pugi::xml_node *xmlnode = NULL);
 	void			ExportMaterial(Mtl *mtl, pugi::xml_node *xmlnode = NULL);
 	void			ExportLight(INode *node);
+	void			ExportCollision(INode *node, pugi::xml_node *xmlnode = NULL);
 	BOOL			TMNegParity(Matrix3 &m);
 	TriObject*		GetTriObjectFromNode(INode *node, TimeValue t, int &deleteIt);
 	short			GetTVerts(Mesh* mesh, Point2 *tv);
@@ -47,4 +48,5 @@ private:
 	pugi::xml_document m_mesh_xml;
 	pugi::xml_document m_materials_xml;
 	pugi::xml_document m_textures_xml;
+	pugi::xml_document m_collision_xml;
 };
