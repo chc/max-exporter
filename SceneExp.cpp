@@ -45,15 +45,17 @@ void			CHCScnExp::ShowAbout(HWND hWnd) {
 }
 
 
-void CHCScnExp::ExportMaterial(Mtl *mtl, pugi::xml_node *xmlnode) {
-
-	pugi::xml_node xnode = m_materials_xml.append_child();
-    xnode.set_name("material");
+void CHCScnExp::ExportMaterial(Mtl *mtl, pugi::xml_node *xmlnode, int level) {
+	if (xmlnode == NULL)
+		xmlnode = &m_materials_xml;
+	pugi::xml_node xnode = xmlnode->append_child();
+	xnode.set_name("material");
 #ifdef _UNICODE
 	xnode.append_attribute("name") = mtl->GetName().ToCStr();
 #else
 	xnode.append_attribute("name") = mtl->GetName().data();
 #endif
+
 
 	Color specCol = mtl->GetSpecular();
 	
@@ -344,6 +346,7 @@ void CHCScnExp::ExportMesh(INode *node, pugi::xml_node *xmlnode) {
 
 	xnode = main_node.append_child();
     xnode.set_name("indices");
+
 	uint32_t indices[3];
 	for (int i=0; i<num_indices; i++) {
 		indices[0] = mesh->faces[i].v[vx1];
@@ -356,6 +359,13 @@ void CHCScnExp::ExportMesh(INode *node, pugi::xml_node *xmlnode) {
 		param.append_attribute("x") = indices[0];
 		param.append_attribute("y") = indices[1];
 		param.append_attribute("z") = indices[2];
+
+		int matid = mesh->faces[i].getMatID();
+
+		Mtl *mat = mtl;
+		if (matid > 0)
+			mat = mtl->GetSubMtl(matid - 1);
+		param.append_attribute("material") = mat->GetName().ToCStr().data();
 	}
 }
 void			CHCScnExp::ExportGeomObject(INode *node, pugi::xml_node *xmlnode) {

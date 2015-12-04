@@ -32,7 +32,7 @@ public:
 	void			ExportGeomObject(INode *node, pugi::xml_node *xmlnode = NULL);
 	void			ExportGeomMaterial(INode *node, pugi::xml_node *xmlnode = NULL);					
 	void			ExportMesh(INode *node, pugi::xml_node *xmlnode = NULL);
-	void			ExportMaterial(Mtl *mtl, pugi::xml_node *xmlnode = NULL);
+	void			ExportMaterial(Mtl *mtl, pugi::xml_node *xmlnode = NULL, int level = 0);
 	void			ExportLight(INode *node);
 	void			ExportCollision(INode *node, pugi::xml_node *xmlnode = NULL);
 	BOOL			TMNegParity(Matrix3 &m);
